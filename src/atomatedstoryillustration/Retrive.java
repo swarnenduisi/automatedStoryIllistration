@@ -5,7 +5,7 @@
  */
 package atomatedstoryillustration;
 
-import static atomatedstoryillustration.TfIdf.indexreader;
+//import static atomatedstoryillustration.TfIdf.indexreader;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
