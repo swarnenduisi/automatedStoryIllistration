@@ -373,7 +373,7 @@ public class RF {
             }
         }
         
-        Retrive ret = new Retrive(1.5f, 0.75f);
+        //Retrive ret = new Retrive(1.5f, 0.75f);
         
         String indexDir1 = "/Users/swarnenduchakraborty/study/indexNew_2/";
         HashMap<String , Terms> hm_curr = new HashMap<String , Terms>();
@@ -388,7 +388,7 @@ public class RF {
             hm_curr = searchInIndex(indexDir1, val, k,100);
         }
         
-        ret.removeDupDocName(); 
+        //ret.removeDupDocName(); 
         
        
         
