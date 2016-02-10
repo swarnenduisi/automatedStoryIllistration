@@ -56,78 +56,89 @@ import org.w3c.dom.NodeList;
  *
  * @author swarnenduchakraborty
  */
+// This class retrive the documents depending on the query
 public class Retrive {
 
-    static IndexReader reader;
-    static IndexSearcher searcher;
-    //static String indexDir = "";
+    public static IndexReader reader;
+    public static IndexSearcher searcher;
     static final float LM_LAMBDA = 0.4f;
     static Analyzer analyzer = new EnglishAnalyzer(Version.LUCENE_4_9);
-    static FileWriter fw,fw_rel;
+    static FileWriter fw, fw_rel;
     static FileWriter fw_p5;
-
     static float BM_k, BM_v;
     static float LMJelink_K;
+    HashMap<String , HashMap<String , Terms>> hm_tf = new HashMap<String , HashMap<String , Terms>>();
 
+    // Construtor taking K,V value for the BM25 parameter
     public Retrive(float BM_k, float BM_v) throws IOException {
         this.BM_k = BM_k;
         this.BM_v = BM_v;
+
+        // this file contains the extracted document in the qrel format
         this.fw = new FileWriter(new File("/Users/swarnenduchakraborty/study/dissertation/result.txt"));
+        //this file contains the extracted document with "Searchable_Field" also in qrel format .Mainly for relevance feedback
         this.fw_rel = new FileWriter(new File("/Users/swarnenduchakraborty/study/dissertation/result_with_searchstring.txt"));
-        //this.fw_p5= new FileWriter(new File("/Users/swarnenduchakraborty/study/dissertation/result_P5.txt"));
+
+    }
+    
+    HashMap getHashMapForTermVector(){
+        return hm_tf; 
     }
 
-    // This is for LM Jelink
-    public Retrive(float LMJelink_K) throws IOException {
-        this.LMJelink_K = LMJelink_K;
-        //this.BM_v = BM_v;
-        this.fw = new FileWriter(new File("/Users/swarnenduchakraborty/study/dissertation/result.txt"));
-    }
+    public static HashMap searchInIndex(String indexDir, String q, int temp, int noOfDocTobeRet) throws IOException, Exception {
 
-    public static void searchInIndex(String indexDir, String q, int temp) throws IOException, Exception {
-
+        //BM_k =1.5f;
+        //BM_v = 0.75f;
+        
         QueryParser parser = new QueryParser(Version.LUCENE_CURRENT, "Searchable_Field", analyzer);
-
         reader = DirectoryReader.open(FSDirectory.open(new File(indexDir)));
-
         searcher = new IndexSearcher(reader);
 
-        //LM Jelink Search
-        //searcher.setSimilarity(new LMJelinekMercerSimilarity(LMJelink_K));
         // BM25 Search
         searcher.setSimilarity(new BM25Similarity(BM_k, BM_v));
 
-        //Query query = buildQuery(q);QueryParser parser = new QueryParser(Version.LUCENE_CURRENT, "Searchable_Field", analyzer);
-        reader = DirectoryReader.open(FSDirectory.open(new File(indexDir)));
+        System.out.println("Query before :: " + q);
 
-        searcher = new IndexSearcher(reader);
-
-        //LM Jelink Search
-        //searcher.setSimilarity
-        //Query query = parser.parse(q);
+        // Making the query 
         Query query = parser.parse(QueryParser.escape(q));
-        //String a = QueryParser.escape(q)
+        //Query query = buildQuery(q);
 
-        System.out.println("Query is :: " + query);
-        TopScoreDocCollector collector = TopScoreDocCollector.create(20, true);
+        System.out.println("Query is :: " + query.toString());
+
+        // collecting top documents by searcher method
+        TopScoreDocCollector collector = TopScoreDocCollector.create(noOfDocTobeRet, true);
         searcher.search(query, collector);
-        TopDocs t = searcher.search(query, 20);
 
-        //searcher.
-        TopDocs topRetrived = collector.topDocs();
-        ScoreDoc[] hits = topRetrived.scoreDocs;
+        TopDocs topdocs = searcher.search(query, noOfDocTobeRet);
+        ScoreDoc[] hits = topdocs.scoreDocs;
 
         String part = "/Users/swarnenduchakraborty/study/dissertation/";
 
+        System.out.println("Length :: " + hits.length);
+        HashMap<String , Terms> hm_temp = new HashMap<String , Terms>();
+        // write in the form of qrel file
         for (int i = 0; i < hits.length; i++) {
 
+            
             Document hitDoc = searcher.doc(hits[i].doc);
+            String p = (hitDoc.get("Image_FilePath"));
+            //System.out.println("file path :: " +p);
+            Terms terms = reader.getTermVector(hits[i].doc, "Searchable_Field");
+            
+            
+            int count = 10;
+            
+            
+            //System.out.println("doc " + i + " had " + numTerms + " terms");
+
+            //Terms term = reader.
             float score = hits[i].score;
             String strScore = Float.toString(score);
 
-            String p = (hitDoc.get("Image_FilePath"));
+            //String p = (hitDoc.get("Image_FilePath"));
+            //System.out.println("file path :: " +p);
             String Searchable = (hitDoc.get("Searchable_Field"));
-            
+
             p = p.replace("/", ",");
             String[] path = p.split(",");
             String tmp = path[path.length - 1];
@@ -135,83 +146,59 @@ public class Retrive {
             tmp = tmp.replace(".", ",");
             String[] only = tmp.split(",");
 
+            // put to the hashmap
+            hm_temp.put(only[0], terms);
+            
+            // Write to original qrel_format result file
             // Query Id
             fw.write(String.valueOf(temp));
             fw.write(" ");
-            
-            fw_rel.write(String.valueOf(temp));
-            fw_rel.write("\t");
-            
             // Query Second Id
             String secondField = "Q" + temp;
+
             fw.write(secondField);
+
             fw.write(" ");
-            
-            fw_rel.write(secondField);
-            fw_rel.write("\t");
-            
             // Document Retrieved
             fw.write(only[0]);
             fw.write(" ");
-            
-            fw_rel.write(only[0]);
-            fw_rel.write("\t");
-            
             // rank
             fw.write("0");
             fw.write(" ");
-            
-            fw_rel.write("0");
-            fw_rel.write("\t");
             // sim Score
-
             fw.write(strScore);
-            fw.write(" ");
-            
-            fw_rel.write(strScore);
-            fw_rel.write("\t");
 
+            fw.write(" ");
             // Run name
             fw.write("run");
             fw.write("\n");
-            
-            fw_rel.write("run");
-            fw_rel.write("\t");
-            
-            fw_rel.write(Searchable);
-            fw_rel.write("\n");
-            
-            
+
+            // Write to a file for RF method <Qid , docid , Score , Searchable_Field_Text>
+            /*fw_rel.write(String.valueOf(temp));                     // Qid
+            fw_rel.write(
+                    "\t");
+            fw_rel.write(only[0]);                                  // Doc id
+            fw_rel.write(
+                    "\t");
+            fw_rel.write(strScore);                                 // Score
+
+            fw_rel.write(
+                    "\t");
+            fw_rel.write(Searchable);                               // Searchable_string
+
+            fw_rel.write(
+                    "\n");*/
 
         }
 
         reader.close();
+        return hm_temp;
 
     }
 
-    static Query buildQuery(String queryStr) throws Exception {
-        BooleanQuery q = new BooleanQuery();
-        Term thisTerm = null;
-        Query tq = null;
-        String[] terms = queryStr.split("\\s+");
+   /*
 
-        for (String term : terms) {
-            thisTerm = new Term("Searchable_Field", term);
-            tq = new TermQuery(thisTerm);
-            q.add(tq, BooleanClause.Occur.SHOULD);
-
-            /*thisTerm = new Term(NewsDoc.FIELD_TITLE, term);
-             tq = new TermQuery(thisTerm);
-             q.add(tq, BooleanClause.Occur.SHOULD);
-
-             thisTerm = new Term(NewsDoc.FIELD_DESC, term);
-             tq = new TermQuery(thisTerm);
-             q.add(tq, BooleanClause.Occur.SHOULD);
-             */
-        }
-        return q;
-    }
-
+    // This is for parsing the validation stories
     void parseXml() throws Exception {
 
         String indexDir = "/Users/swarnenduchakraborty/study/indexNew_2/";
@@ -267,13 +254,36 @@ public class Retrive {
 
     }
 
+    // This function inputs one by one the term in the rel feed method and get back the retrieved docs
+    void queryByRelvenceFeedback() throws FileNotFoundException, IOException, Exception {
+        String indexDir = "/Users/swarnenduchakraborty/study/indexNew_3/";
+        BufferedReader s2 = new BufferedReader(new FileReader("/Users/swarnenduchakraborty/study/dissertation/tf_idf_final_sort.txt"));
+        String test = "";
+        while ((test = s2.readLine()) != null) {
+
+            System.out.println(test);
+            String[] lineparts = test.split("\\s+");
+            if (lineparts.length == 3) {
+                int t1 = Integer.parseInt(lineparts[0]);        // Getting the query id
+                String str = lineparts[1];                      // Getting the term
+                searchInIndex(indexDir, str, t1);                // searInIndex
+            }
+
+        }
+
+    }
+*/
+    
+    
+    // This function parse the test story xml file and call the searchInIndex
     void parseXmlTest() throws IOException {
-        String indexDir = "/Users/swarnenduchakraborty/study/indexNew_2/";
-        String queryDir = "/Users/swarnenduchakraborty/study/dissertation/stories-testset/";
+        HashMap<String , Terms> hm_curr = new HashMap<String , Terms>();
+        HashMap<String , Terms> hm_curr_tmp = new HashMap<String , Terms>();
+        String indexDir = "/Users/swarnenduchakraborty/study/indexNew_3/";                      // index directory
+        String queryDir = "/Users/swarnenduchakraborty/study/dissertation/stories-testset/";    // query set story director
+        File inputStory = new File(queryDir + "short-stories-test-set.xml");                    // file for query
 
-        File inputStory = new File(queryDir + "short-stories-test-set.xml");
-
-        // read Xml
+        // read and parse Xml
         try {
             DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
@@ -283,66 +293,47 @@ public class Retrive {
             NodeList nList1 = doc.getElementsByTagName("stories");
             NodeList nList3 = doc.getElementsByTagName("story");
             System.out.println(nList3.getLength());
+
             for (int prevtmp = 0; prevtmp < nList3.getLength(); prevtmp++) {
 
                 Node n = nList3.item(prevtmp);
                 Element el = (Element) n;
 
-                String s = el.getElementsByTagName("events").item(0).getTextContent().trim();
+                //Searcing by title
                 String title = el.getElementsByTagName("title").item(0).getTextContent().trim();
-
-                // Searching by text
+                hm_curr_tmp = searchInIndex(indexDir, title, prevtmp,1000);
+                
+                
+                // Searching by text only
                 String text = el.getElementsByTagName("text").item(0).getTextContent().trim();
-                //System.out.println("text is " + text);
-                //System.out.println("text is " + text);
-                //String[] line =text.split(".");
+                hm_curr = searchInIndex(indexDir, text, prevtmp,1000);
+                String c= String.valueOf(prevtmp);
+                hm_tf.put(c, hm_curr);
+                // Put this hasmap to 
 
-                //for(int i=0;i<line.length;i++){
-                //    System.out.println("length is ::" + line.length);
-                //    System.out.println(line[i]);
-                //}
-                
-                searchInIndex(indexDir, text, prevtmp);
-                // Searching for title
-                //System.out.println("This is searching by ttitle :: ");
-                //searchInIndex(indexDir, title, prevtmp);
-                //String f = QueryParser.escape(text);
-                //String[] parts = f.split(" ");
-                //for(int h =0;h<parts.length;h++){
-                //System.out.println(parts[h]);
-                //searchInIndex(indexDir,parts[h] , prevtmp);
-                //}
-                // searching for entity
-                
+                // Searching by Entities Only
                 String entities = el.getElementsByTagName("entities").item(0).getTextContent().trim();
                 String[] entityPart = entities.split("\n");
-
-                //System.out.println("This is searching by entity :: ");
-
                 for (int a = 0; a < entityPart.length; a++) {
                     String entity = entityPart[a].trim();
-
-                    //searchInIndex(indexDir, entity, prevtmp);
-
+                    hm_curr_tmp = searchInIndex(indexDir, entity, prevtmp,1000);
                 }
 
+                // Searching by Actions
                 String actions = el.getElementsByTagName("actions").item(0).getTextContent().trim();
-
                 String[] actionPart = actions.split("\n");
-
                 for (int a = 0; a < actionPart.length; a++) {
                     String action = actionPart[a].trim();
-                    //System.out.println(action + prevtmp);
-                    //searchInIndex(indexDir, action, prevtmp);
+                    //hm_curr_tmp = searchInIndex(indexDir, action, prevtmp,1000);
 
                 }
-                //System.out.println("This is searching by event :: ");
-                // search by event
+
+                // Searching by events
+                String s = el.getElementsByTagName("events").item(0).getTextContent().trim();
                 String[] s1 = s.split("\n");
                 for (int h = 0; h < s1.length; h++) {
-
                     String event = s1[h].trim();
-                    //searchInIndex(indexDir, event, prevtmp);
+                    hm_curr_tmp = searchInIndex(indexDir, event, prevtmp,1000);
                 }
 
             }
@@ -350,8 +341,8 @@ public class Retrive {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        fw.close();
-        fw_rel.close();
+        fw.close();                     // Close the qrel_format retrived file
+        fw_rel.close();                 // Close the qrel_format retrieved file with Searchable_Field for RF
     }
 
     void queryByrelevancefeedback() throws FileNotFoundException, IOException, Exception {
@@ -378,21 +369,21 @@ public class Retrive {
                     if (!queryText.equals(null)) {
                         //System.out.println("Querytext :: " + queryText);
                         //System.out.println("Queryid :: " + queryid);
-                        searchInIndex(indexDir, queryText, queryid);
-                        searchInIndex(indexDir, partsimagename[0], queryid);
+                        searchInIndex(indexDir, queryText, queryid,1000);
+                        searchInIndex(indexDir, partsimagename[0], queryid,1000);
                     }
                 }
             }
         }
     }
 
+    // This function removes duplicate doc number from result file as for each query of a story one doc can be retrieved multiple time
     void removeDupDocName() throws IOException {
 
-        File f = new File("/Users/swarnenduchakraborty/study/dissertation/result.txt");
-        //File checkfile = new File("/Users/swarnenduchakraborty/study/dissertation/check.txt");
-        FileWriter fw = new FileWriter(new File("/Users/swarnenduchakraborty/study/dissertation/result" + BM_k + "_" + BM_v + ".txt"));
-        //BufferedReader br_checkfile = new BufferedReader(new FileReader(checkfile));
+        File f = new File("/Users/swarnenduchakraborty/study/dissertation/result.txt");     // Output file in qrel format for retrieved docs
+        FileWriter fw = new FileWriter(new File("/Users/swarnenduchakraborty/study/dissertation/result" + BM_k + "_" + BM_v + ".txt")); // This file contains the entry with duplicate removed
         BufferedReader br = new BufferedReader(new FileReader(f));
+
         String line = null;
         ArrayList<String> list = new ArrayList<String>();
         int checkcount = 0;
@@ -400,29 +391,26 @@ public class Retrive {
 
         while ((line = br.readLine()) != null) {
 
-            String[] parts = line.split("\\s+");
-
-            if (parts.length != 6) {
-                //System.out.println(line);
-                break;
+            String[] parts = line.split("\\s+");                        // Splliting the line <qid , qid-t , docid,  0  ,score , runanme>
+            if (parts.length != 6) {                                    // Continue if any value is missing
+                continue;
             } else {
-                String imageid = parts[2];
-                String qidimageid = parts[0] + parts[2];
-                if (list.contains(qidimageid)) {
-                    //if (list.contains(imageid)) {
-                    System.out.println("queryid is -- " + qidimageid);
+                String imageid = parts[2];                              // Extract the imageid
+                String qidimageid = parts[0] + parts[2];                // 
+                if (list.contains(qidimageid)) {                        // if this is true that means previouls this imageid has been seen
+
+                    System.out.println("queryid is -- " + qidimageid);  // Dont add this to qrel file
                     checkcount++;
-                    //System.out.println("Count :: " + checkcount);
-                    //System.out.println(line);
                     continue;
                 } else {
-                    
-                    list.add(qidimageid);
-                    //list.add(imageid);
-                    fw.write(parts[0]);
+
+                    list.add(qidimageid);                               // Add to the qrel file
+
+                    //Qid
+                    fw.write(parts[0]);                                 // Writting the qrel file
                     fw.write(" ");
                     // Query Second Id
-                    //String secondField = "Q" + temp;
+
                     fw.write(parts[1]);
                     fw.write(" ");
                     // Document Retrieved
@@ -522,22 +510,15 @@ public class Retrive {
 
     }
 
-    
-    void relFeedback(){
-        //get top 20 docs from the result_k_v file by score.
-        
-        
-        
-    }
     public static void main(String[] args) throws IOException, Exception {
 
-        Retrive r = new Retrive(0.5f, 0.5f);
-        r.parseXmlTest();
-        
-        //r.queryByrelevancefeedback();
-        r.removeDupDocName();
-        r.computeMAP();
-        
+        Retrive r = new Retrive(1.5f, 0.5f);            // Create object with K and V value
+        r.parseXmlTest();                               // parse the xml file for test set
+
+        //r.queryByrelevancefeedback();                   // Query by relevance Feedback terms
+        r.removeDupDocName();                           // remove the duplicate docs
+        //r.computeMAP();                               // compute the MAP
+
     }
 
 }
