@@ -10,6 +10,7 @@ package atomatedstoryillustration;
  * @author swarnenduchakraborty
  */
 import java.io.*;
+import java.util.Properties;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.ParserConfigurationException;
@@ -30,44 +31,49 @@ import org.apache.lucene.util.Version;
 
 public class AtomatedStoryIllustration {
 
-    static String id, name, filepath, lang_en, en_caption, lang_de, de_caption, lang_fr, fr_caption;
+    static String id, name, filepath, lang_en, en_caption, lang_de, de_caption, lang_fr, fr_caption, en_description, en_comment, all_comment;
     public static final String FILES_TO_INDEX_DIRECTORY = "filesToIndex";
     public static final String INDEX_DIRECTORY = "indexDirectory";
     static IndexWriter writer;
+    static String Searchable = "";
+    static String procName = "";
+    static int count;
 
     static org.apache.lucene.document.Document getDocument() throws Exception {
 
         org.apache.lucene.document.Document doc = new org.apache.lucene.document.Document();
 
         doc.add(new Field("Image_Id", id,
-                Field.Store.YES, Field.Index.ANALYZED));
+                Field.Store.YES, Field.Index.NOT_ANALYZED));
         doc.add(new Field("Image_FilePath", filepath,
-                Field.Store.YES, Field.Index.ANALYZED));
-        doc.add(new Field("Lang_En", lang_en,
-                Field.Store.YES, Field.Index.ANALYZED));
+                Field.Store.YES, Field.Index.NOT_ANALYZED));
+
+        doc.add(new Field("Image_Name", procName,
+                Field.Store.YES, Field.Index.NOT_ANALYZED));
+
         doc.add(new Field("En_Caption", en_caption,
-                Field.Store.YES, Field.Index.ANALYZED));
-        doc.add(new Field("Lang_de", lang_de,
-                Field.Store.YES, Field.Index.ANALYZED));
-        doc.add(new Field("De_Caption", de_caption,
-                Field.Store.YES, Field.Index.ANALYZED));
-        doc.add(new Field("Lang_fr", lang_fr,
-                Field.Store.YES, Field.Index.ANALYZED));
-        doc.add(new Field("Fr_Caption", fr_caption,
-                Field.Store.YES, Field.Index.ANALYZED));
+                Field.Store.YES, Field.Index.NOT_ANALYZED));
+        doc.add(new Field("En_Description", en_description,
+                Field.Store.YES, Field.Index.NOT_ANALYZED));
+        doc.add(new Field("En_Comment", en_comment,
+                Field.Store.YES, Field.Index.NOT_ANALYZED));
+        doc.add(new Field("All_Comment", all_comment,
+                Field.Store.YES, Field.Index.NOT_ANALYZED));
+
+        doc.add(new Field("Searchable_Field", Searchable,
+                Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.YES));
 
         return doc;
 
     }
 
-    static void init() throws IOException {
-        File indexDir = new File("/Users/swarnenduchakraborty/study/indexNew_1/");
-        //Analyzer analyzer = new StandardAnalyzer();
+    static void init(Properties prop) throws IOException {
+        
+        String indexDirectory = prop.getProperty("index");
+        File indexDir = new File(indexDirectory);
         Analyzer analyzer = new EnglishAnalyzer(Version.LUCENE_4_9);
-        // boolean recreateIndexIfExists = true;
         IndexWriterConfig iwcfg = new IndexWriterConfig(Version.LUCENE_4_9, analyzer);
         iwcfg.setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND);
-        //   IndexWriter indexWriter = new IndexWriter(INDEX_DIRECTORY, analyzer, recreateIndexIfExists);
         writer = new IndexWriter(FSDirectory.open(indexDir), iwcfg);
 
     }
@@ -79,83 +85,116 @@ public class AtomatedStoryIllustration {
 
     }
 
-    public static void main(String[] args) throws ParserConfigurationException, SAXException, IOException, Exception {
+    public static void stringProcess() {
 
+        name = name.replace(".", ",");
+        procName = name.split(",")[0];
+        //Searchable = en_description + " " + en_comment + " " + en_caption + " " + procName;
+        
+        Searchable = procName.trim() + " " + en_caption.trim() ;
+        Searchable = Searchable.trim().toLowerCase();
+        
+
+    }
+
+    public static void main(String[] args) throws ParserConfigurationException, SAXException, IOException, Exception {
+        int fileno = 0;
+        
+        Properties prop = new Properties();
+        InputStream input = new FileInputStream("/Users/swarnenduchakraborty/study/dissertation/init.properties");
+        prop.load(input);
+        
+        String metadataPath = prop.getProperty("image.metadata");
+        
+        
         for (int j = 1; j <= 26; j++) {
-            File dir = new File("/Users/swarnenduchakraborty/study/dissertation/all_text/metadata/" + j + "/");
-            System.out.println("/Users/swarnenduchakraborty/study/dissertation/all_text/metadata/" + j + "/");
+            File dir = new File(metadataPath + j + "/");
+            System.out.println(metadataPath + j + "/");
             File[] directoryListing = dir.listFiles();
-//
-            init();
+
+            init(prop);
 
             if (directoryListing != null) {
                 for (File child : directoryListing) {
-                    //System.out.println(child);
-                    DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-                    DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-                    Document doc = dBuilder.parse(child);
+                    
+                    fileno++;
+                    
+                    try {
+                        
+                        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+                        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+                        Document doc = dBuilder.parse(child);
 
-                    //System.out.println("Root element :" + doc.getDocumentElement().getAttribute("id"));
-                    //System.out.println("Root element :" + doc.getDocumentElement().getAttribute("file"));
-                    id = doc.getDocumentElement().getAttribute("id");
-                    filepath = doc.getDocumentElement().getAttribute("file");
+                    
+                        id = doc.getDocumentElement().getAttribute("id");
+                        filepath = doc.getDocumentElement().getAttribute("file");
 
-                    // extract the name of the image
-                    NodeList nlist_name = doc.getElementsByTagName("name");
-                    Node nNode_name = nlist_name.item(0);
-                    //System.out.println("Image name :: " + nNode_name.getTextContent());
+                        // extract the name of the image
+                        NodeList nlist_name = doc.getElementsByTagName("name");
+                        Node nNode_name = nlist_name.item(0);
+                        name = nNode_name.getTextContent();
+                    
 
-                    //extarct all other info
-                    NodeList nList = doc.getElementsByTagName("text");
+                        //extarct all other info
+                        NodeList nList = doc.getElementsByTagName("text");
 
-                    for (int temp = 0; temp < nList.getLength(); temp++) {
-                        Node nNode = nList.item(temp);
-                        //System.out.println("\nCurrent Element :" + nNode.getNodeName());
+                        for (int temp = 0; temp < nList.getLength(); temp++) {
+                            Node nNode = nList.item(temp);
+                            
 
-                        if (nNode.getNodeType() == Node.ELEMENT_NODE) {
+                            if (nNode.getNodeType() == Node.ELEMENT_NODE) {
 
-                            Element eElement = (Element) nNode;
-                            //System.out.println("Language : " + eElement.getAttribute("xml:lang"));
+                                Element eElement = (Element) nNode;
+                            
 
-                            // english
-                            if (eElement.getAttribute("xml:lang").equals("en")) {
+                                // english
+                                if (eElement.getAttribute("xml:lang").equals("en")) {
 
-                                lang_en = eElement.getAttribute("xml:lang");
-                                en_caption = eElement.getElementsByTagName("caption").item(0).getTextContent();
-                                //System.out.println("Description: " + eElement.getElementsByTagName("description").item(0).getTextContent());
-                                //System.out.println("Comment: " + eElement.getElementsByTagName("comment").item(0).getTextContent());
-                                //System.out.println("Caption : " + eElement.getElementsByTagName("caption").item(0).getTextContent());
-                            } // german
-                            else if (eElement.getAttribute("xml:lang").equals("de")) {
+                                    lang_en = eElement.getAttribute("xml:lang");
+                                    en_caption = eElement.getElementsByTagName("caption").item(0).getTextContent();
+                                    en_description = eElement.getElementsByTagName("description").item(0).getTextContent();
+                                    en_comment = eElement.getElementsByTagName("comment").item(0).getTextContent();
+                            
+                                } // german
+                                else if (eElement.getAttribute("xml:lang").equals("de")) {
 
-                                lang_de = eElement.getAttribute("xml:lang");
-                                de_caption = eElement.getElementsByTagName("caption").item(0).getTextContent();
+                                    lang_de = eElement.getAttribute("xml:lang");
+                                    de_caption = eElement.getElementsByTagName("caption").item(0).getTextContent();
 
-                                //System.out.println("Description: " + eElement.getElementsByTagName("description").item(0).getTextContent());
-                                //System.out.println("Comment: " + eElement.getElementsByTagName("comment").item(0).getTextContent());
-                                //System.out.println("Caption : " + eElement.getElementsByTagName("caption").item(0).getTextContent());
-                            } // french
-                            else if (eElement.getAttribute("xml:lang").equals("fr")) {
+                                } // french
+                                else if (eElement.getAttribute("xml:lang").equals("fr")) {
 
-                                lang_fr = eElement.getAttribute("xml:lang");
-                                fr_caption = eElement.getElementsByTagName("caption").item(0).getTextContent();
+                                    lang_fr = eElement.getAttribute("xml:lang");
+                                    fr_caption = eElement.getElementsByTagName("caption").item(0).getTextContent();
 
-                                //System.out.println("Description: " + eElement.getElementsByTagName("description").item(0).getTextContent());
-                                //System.out.println("Comment: " + eElement.getElementsByTagName("comment").item(0).getTextContent());
-                                //System.out.println("Caption : " + eElement.getElementsByTagName("caption").item(0).getTextContent());
+                                }
                             }
                         }
+
+                        NodeList nlist_comment = doc.getElementsByTagName("comment");
+                        
+                        Node nNode_comment = nlist_comment.item(3);
+                    
+
+                        all_comment = nNode_comment.getTextContent();
+                        all_comment = all_comment.replaceAll("https?://\\S+\\s?", "");
+                        all_comment = all_comment.replaceAll(" ", "Z");
+                        all_comment = all_comment.replaceAll("[^A-Za-z]+", "");
+                        all_comment = all_comment.replaceAll("Z", " ");
+                    
+                        stringProcess();
+                        createIndex();
+                    } catch (Exception e) {
+                        System.out.println(e);
+                        count++;
                     }
-
-                    //Properties prop = new Properties();
-                    //prop.load(new FileReader("propety.list"));
-                    //Indexer indexer = new Indexer(prop, "index");
-                    createIndex();
                 }
-
             }
 
             writer.close();
         }
+        
+        
+        System.out.println("number of file :: " +fileno);
     }
 }
